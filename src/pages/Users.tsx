@@ -31,8 +31,7 @@ export default function Users() {
       <h1>👥 Danh sách Users</h1>
       <p>
         Data được fetch bằng{" "}
-        <strong>loader</strong> - trước khi
-        component render.
+        <strong>useEffect & useState</strong> trong component.
       </p>
       <ul>
         {users.map((user) => (

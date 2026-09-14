@@ -1,55 +1,54 @@
-# Hướng Dẫn Cấu Hình và Sử Dụng React Router v7 (Data Mode)
+# Hướng Dẫn Cấu Hình và Sử Dụng React Router v7 (Client-Side CSR Không Dùng Loader)
 
-Tài liệu này hướng dẫn chi tiết cách cấu hình và triển khai **React Router v7** cho ứng dụng **Client-Side Rendering (CSR)** với Vite và React 19 theo kiến trúc **Data Mode** (khuyến nghị chuẩn từ React Router).
+Tài liệu này hướng dẫn chi tiết cách cấu hình và triển khai **React Router v7** cho ứng dụng **Client-Side Rendering (CSR)** với Vite và React 19 dựa trên cấu trúc thực tế của dự án hiện tại: **sử dụng cấu hình Object-based Router (`createBrowserRouter`), Layout lồng nhau (`<Outlet />`), và quản lý/fetch dữ liệu trực tiếp trong component bằng React Hooks (`useState`, `useEffect`, `useParams`) thay vì dùng `loader`**.
 
 ---
 
 ## 📑 Mục Lục
 1. [Cài đặt Thư Viện](#1-cài-đặt-thư-viện)
-2. [Tổng Quan Kiến Trúc Data Mode](#2-tổng-quan-kiến-trúc-data-mode)
-3. [Các Bước Cấu Hình Chuẩn](#3-các-bước-cấu-hình-chuẩn)
-   - [Bước 1: Định nghĩa danh sách routes (`routes.tsx`)](#bước-1-định-nghĩa-danh-sách-routes-routestsx)
-   - [Bước 2: Cung cấp Router cho ứng dụng (`App.tsx`)](#bước-2-cung-cấp-router-cho-ứng-dụng-appsx)
-   - [Bước 3: Tạo Layout chung với `<Outlet />` (`Layout.tsx`)](#bước-3-tạo-layout-chung-với-outlet-layouttsx)
-4. [Khai Thác Sức Mạnh Của Data Mode](#4-khai-thác-sức-mạnh-của-data-mode)
-   - [Dùng `loader` thay cho `useEffect`](#41-data-loading-dùng-loader-thay-cho-useeffect)
-   - [Trạng thái chuyển trang với `useNavigation`](#42-trạng-thái-chuyển-trang-với-usenavigation)
-   - [Dynamic Routes & `useParams`](#43-dynamic-routes--useparams)
-   - [Xử lý lỗi với `errorElement`](#44-xử-lý-lỗi-với-errorelement)
-   - [Xử lý trang 404 Not Found](#45-xử-lý-trang-404-not-found)
-5. [Các Thành Phần Điều Hướng Thường Dùng](#5-các-thành-phần-điều-hướng-thường-dùng)
-6. [Bảng Tra Cứu Hooks Quan Trọng](#6-bảng-tra-cứu-hooks-quan-trọng)
+2. [Kiến Trúc Router của Dự Án](#2-kiến-trúc-router-của-dự-án)
+3. [Cấu Hình và Tổ Chức Mã Nguồn](#3-cấu-hình-và-tổ-chức-mã-nguồn)
+   - [Bước 1: Định nghĩa danh sách routes (`src/routes.tsx`)](#bước-1-định-nghĩa-danh-sách-routes-srcroutestsx)
+   - [Bước 2: Cung cấp Router cho ứng dụng (`src/App.tsx`)](#bước-2-cung-cấp-router-cho-ứng-dụng-srcappsx)
+   - [Bước 3: Xây dựng Layout chung với `<Outlet />` (`src/components/Layout.tsx`)](#bước-3-xây-dựng-layout-chung-với-outlet-srccomponentslayouttsx)
+4. [Fetch Dữ Liệu Trong Component (Không Dùng `loader`)](#4-fetch-dữ-liệu-trong-component-không-dùng-loader)
+   - [Trang danh sách: `useEffect` + `useState` (`src/pages/Users.tsx`)](#41-trang-danh-sách-useeffect--usestate-srcpagesuserstsx)
+   - [Dynamic Route & Đọc URL Params với `useParams` (`src/pages/UserDetail.tsx`)](#42-dynamic-route--đọc-url-params-với-useparams-srcpagesuserdetailtsx)
+   - [Các trang tĩnh (`Home.tsx`, `About.tsx`)](#43-các-trang-tĩnh-hometsx-abouttsx)
+5. [So Sánh: Fetch trong Component vs Dùng `loader`](#5-so-sánh-fetch-trong-component-vs-dùng-loader)
+6. [Các Thành Phần Điều Hướng & Hooks Thường Dùng](#6-các-thành-phần-điều-hướng--hooks-thường-dùng)
 
 ---
 
 ## 1. Cài đặt Thư Viện
 
-Từ phiên bản v7, package chính thức được gộp lại thành `react-router`:
+Từ phiên bản React Router v7, toàn bộ tính năng routing cho web được gộp gọn trong package `react-router`:
 
 ```bash
 npm install react-router
 ```
 
-> **Lưu ý:** Không cần cài `react-router-dom` độc lập nữa trong React Router v7 vì các API DOM đều có sẵn trực tiếp trong `react-router`.
+> [!NOTE]
+> Trong React Router v7, bạn không cần cài thêm `react-router-dom` độc lập nữa. Các API như `createBrowserRouter`, `RouterProvider`, `Link`, `NavLink`, `Outlet`, `useParams`, `useNavigate` đều được export trực tiếp từ `react-router`.
 
 ---
 
-## 2. Tổng Quan Kiến Trúc Data Mode
+## 2. Kiến Trúc Router của Dự Án
 
-Data Mode sử dụng cấu hình **Object-based router** (`createBrowserRouter`) kết hợp với `<RouterProvider>`.
+Dự án này sử dụng mô hình **Object-based Router** nhưng **không sử dụng `loader`**:
 
-### Lợi ích cốt lõi:
-- **Tải dữ liệu song song (Parallel Fetching):** Fetch dữ liệu ngay khi URL thay đổi thông qua `loader` trước khi render component, loại bỏ hiện tượng giật lag màn hình (network waterfalls).
-- **Quản lý nested layout tự nhiên:** Layout lồng nhau rõ ràng, component cha giữ nguyên và chỉ re-render `<Outlet />` bên trong.
-- **Xử lý lỗi tập trung:** Bắt lỗi API hoặc crash component thông qua `errorElement` mà không làm chết toàn bộ ứng dụng.
+- **Cấu hình tuyến đường dạng mảng Object (`createBrowserRouter`)**: Quản lý tập trung toàn bộ cấu trúc URL của ứng dụng, hỗ trợ route cha/con (`children`), định tuyến lồng nhau (nested routes) và route động (`:userId`).
+- **Sử dụng thuộc tính `Component`**: Khai báo component dạng tham chiếu (`Component: Layout`, `Component: Home`) theo chuẩn mới của React Router v7 thay vì `element: <Layout />`.
+- **Fetch dữ liệu độc lập tại Component (`useEffect` + `useState`)**: Mỗi component tự quản lý trạng thái tải (loading), dữ liệu (data), và lỗi (error) bằng React Hooks truyền thống.
+- **Trải nghiệm người dùng tức thì (Instant Navigation)**: Khi người dùng bấm chuyển trang, router mount ngay lập tức layout/page mới mà không bị chặn chờ mạng phản hồi như khi dùng route `loader`.
 
 ---
 
-## 3. Các Bước Cấu Hình Chuẩn
+## 3. Cấu Hình và Tổ Chức Mã Nguồn
 
-### Bước 1: Định nghĩa danh sách routes (`routes.tsx`)
+### Bước 1: Định nghĩa danh sách routes (`src/routes.tsx`)
 
-Tạo file tập trung quản lý toàn bộ các đường dẫn trong ứng dụng:
+File `routes.tsx` là nơi khai báo toàn bộ cây điều hướng của ứng dụng:
 
 ```tsx
 // src/routes.tsx
@@ -57,43 +56,35 @@ import { createBrowserRouter } from "react-router";
 import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import About from "./pages/About";
-import Users, { usersLoader } from "./pages/Users";
-import UserDetail, { userDetailLoader } from "./pages/UserDetail";
-import NotFound from "./pages/NotFound";
-import ErrorPage from "./pages/ErrorPage";
+import Users from "./pages/Users";
+import UserDetail from "./pages/UserDetail";
 
 const routes = createBrowserRouter([
   {
     path: "/",
-    Component: Layout,
-    ErrorBoundary: ErrorPage, // Bắt lỗi cấp toàn layout
+    Component: Layout, // Layout bọc ngoài cùng cho toàn bộ ứng dụng
     children: [
       {
-        index: true, // Khớp chính xác route "/"
+        index: true, // Khớp chính xác với đường dẫn gốc "/"
         Component: Home,
       },
       {
-        path: "about",
+        path: "about", // Khớp "/about"
         Component: About,
       },
       {
-        path: "users",
+        path: "users", // Nhóm các route liên quan đến users
         children: [
           {
-            index: true, // Khớp "/users"
+            index: true, // Khớp "/users" - hiển thị danh sách
             Component: Users,
-            loader: usersLoader, // Chạy trước khi render Users
           },
           {
-            path: ":userId", // Khớp "/users/1", "/users/abc"
+            path: ":userId", // Khớp route động: "/users/1", "/users/2",...
             Component: UserDetail,
-            loader: userDetailLoader,
+            // Không dùng loader ở đây, component sẽ tự lấy userId qua useParams()
           },
         ],
-      },
-      {
-        path: "*", // Bắt tất cả đường dẫn không tồn tại (404)
-        Component: NotFound,
       },
     ],
   },
@@ -102,113 +93,155 @@ const routes = createBrowserRouter([
 export default routes;
 ```
 
+#### Điểm mấu chốt:
+1. **`Component` thay vì `element`**: Bạn truyền trực tiếp định danh Component (`Component: Home`) thay vì truyền JSX element (`element: <Home />`).
+2. **`index: true`**: Đại diện cho route mặc định khi truy cập vào đường dẫn của route cha.
+3. **`children`**: Tạo các tuyến đường con lồng nhau. Component của route cha (`Layout`) sẽ hiển thị component con thông qua `<Outlet />`.
+4. **Không khai báo `loader`**: Route chỉ làm nhiệm vụ điều hướng thuần túy.
+
 ---
 
-### Bước 2: Cung cấp Router cho ứng dụng (`App.tsx`)
+### Bước 2: Cung cấp Router cho ứng dụng (`src/App.tsx`)
 
-Truyền instance `routes` vào `<RouterProvider>`:
+Truyền instance `routes` đã tạo vào component `<RouterProvider>`:
 
 ```tsx
 // src/App.tsx
 import { RouterProvider } from "react-router";
 import routes from "./routes";
 
-export default function App() {
-  return <RouterProvider router={routes} />;
+function App() {
+  return (
+    <>
+      <RouterProvider router={routes} />
+    </>
+  );
 }
+
+export default App;
 ```
+
+`<RouterProvider>` sẽ quản lý context điều hướng cho toàn bộ cây component con.
 
 ---
 
-### Bước 3: Tạo Layout chung với `<Outlet />` (`Layout.tsx`)
+### Bước 3: Xây dựng Layout chung với `<Outlet />` (`src/components/Layout.tsx`)
 
-Layout chứa Header/Navbar, Footer và vị trí `<Outlet />` để render component con tương ứng:
+`Layout` đóng vai trò khung giao diện dùng chung (thanh điều hướng menu, header, footer) cho tất cả các trang:
 
 ```tsx
 // src/components/Layout.tsx
-import { NavLink, Outlet, useNavigation } from "react-router";
+import {
+  NavLink,
+  Outlet,
+  useNavigation,
+} from "react-router";
 
 export default function Layout() {
   const navigation = useNavigation();
-  // Kiểm tra xem trang có đang tải dữ liệu (loader đang chạy) hay không
-  const isLoading = navigation.state === "loading";
+  const isNavigating = Boolean(navigation.location);
 
   return (
     <div>
-      <nav style={{ display: "flex", gap: "16px", padding: "12px", background: "#f5f5f5" }}>
-        <NavLink 
-          to="/" 
-          end 
-          style={({ isActive }) => ({ fontWeight: isActive ? "bold" : "normal" })}
-        >
+      <nav
+        style={{
+          display: "flex",
+          gap: "16px",
+          padding: "12px",
+          background: "#f0f0f0",
+        }}
+      >
+        <NavLink to="/" end>
           Home
         </NavLink>
-        <NavLink 
-          to="/about" 
-          style={({ isActive }) => ({ fontWeight: isActive ? "bold" : "normal" })}
-        >
+        <NavLink to="/about" end>
           About
         </NavLink>
-        <NavLink 
-          to="/users" 
-          style={({ isActive }) => ({ fontWeight: isActive ? "bold" : "normal" })}
-        >
+        <NavLink to="/users" end>
           Users
         </NavLink>
       </nav>
 
-      {/* Hiển thị thanh tiến trình hoặc loading indicator khi loader đang chạy */}
-      {isLoading && <div style={{ background: "#e0f2fe", padding: "8px" }}>⏳ Đang tải dữ liệu...</div>}
-
       <main style={{ padding: "24px" }}>
-        {/* Nơi nội dung của route con được render */}
-        <Outlet />
+        {isNavigating ? (
+          <p>Đang chuyển trang...</p>
+        ) : (
+          <Outlet /> // Nơi nội dung của trang con (Home, About, Users, UserDetail) hiển thị
+        )}
       </main>
     </div>
   );
 }
 ```
 
+#### Các thành phần chính trong Layout:
+- **`<NavLink to="..." end>`**: Giúp tạo liên kết điều hướng. Khi URL hiện tại trùng khớp, React Router tự động áp dụng class `.active` (hoặc bạn có thể tự style dựa theo hàm callback `({ isActive }) => ...`).
+- **`<Outlet />`**: Vị trí đặt "giữ chỗ" để React Router render component con tương ứng với URL hiện tại.
+- **`useNavigation()`**: Theo dõi trạng thái điều hướng khi chuyển trang.
+
 ---
 
-## 4. Khai Thác Sức Mạnh Của Data Mode
+## 4. Fetch Dữ Liệu Trong Component (Không Dùng `loader`)
 
-### 4.1. Data Loading: Dùng `loader` thay cho `useEffect`
+Thay vì dùng `loader` tại tầng khai báo route, dự án này fetch dữ liệu bằng các React Hook tiêu chuẩn (`useState` và `useEffect`). Cách tiếp cận này cực kỳ quen thuộc, dễ kiểm soát và không yêu cầu cơ chế xử lý phức tạp của Data Router.
 
-Thay vì `useEffect` + `useState` (gây ra tình trạng component render trước rồi màn hình trống hoặc xoay spinner), Data Mode dùng `loader`:
+### 4.1. Trang danh sách: `useEffect` + `useState` (`src/pages/Users.tsx`)
+
+Component tự gọi API khi được mount vào DOM và lưu dữ liệu vào local state:
 
 ```tsx
 // src/pages/Users.tsx
-import { useLoaderData, Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link } from "react-router";
 
 export type User = {
   id: number;
   name: string;
+  username: string;
+  website: string;
+  phone: string;
   email: string;
+  company: {
+    name: string;
+  };
+  address: {
+    city: string;
+  };
 };
 
-// 1. Khai báo hàm loader (chạy tự động khi truy cập route)
-export async function usersLoader(): Promise<User[]> {
-  const res = await fetch("https://jsonplaceholder.typicode.com/users");
-  if (!res.ok) {
-    throw new Error("Không thể tải danh sách người dùng!");
-  }
-  return res.json();
-}
-
-// 2. Component tiêu thụ dữ liệu qua useLoaderData()
 export default function Users() {
-  const users = useLoaderData() as User[];
+  const [users, setUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    // Fetch dữ liệu khi component được mount
+    fetch("https://jsonplaceholder.typicode.com/users")
+      .then((res) => res.json())
+      .then((res) => {
+        setUsers(res);
+      });
+  }, []);
 
   return (
     <div>
       <h1>👥 Danh sách Users</h1>
+      <p>
+        Data được fetch bằng <strong>useEffect & useState</strong> trong component.
+      </p>
       <ul>
         {users.map((user) => (
           <li key={user.id}>
+            {/* Sử dụng Link để chuyển tới trang chi tiết user */}
             <Link to={`/users/${user.id}`}>
               <strong>{user.name}</strong>
-            </Link> - {user.email}
+            </Link>
+            <span
+              style={{
+                marginLeft: "12px",
+                color: "#666",
+              }}
+            >
+              {user.email}
+            </span>
           </li>
         ))}
       </ul>
@@ -219,76 +252,45 @@ export default function Users() {
 
 ---
 
-### 4.2. Trạng thái chuyển trang với `useNavigation`
+### 4.2. Dynamic Route & Đọc URL Params với `useParams` (`src/pages/UserDetail.tsx`)
 
-Khi người dùng nhấn vào route có `loader`, `navigation.state` sẽ chuyển từ `"idle"` sang `"loading"`.
-Bạn có thể đọc trạng thái này ở bất kỳ đâu bên trong `RouterProvider`:
-
-```tsx
-import { useNavigation } from "react-router";
-
-const navigation = useNavigation();
-
-console.log(navigation.state); 
-// "idle" | "loading" | "submitting"
-```
-
----
-
-### 4.3. Dynamic Routes & `useParams`
-
-Để truyền param từ URL vào `loader`, tham số `params` được cung cấp sẵn:
+Khi route được định nghĩa với param `:userId` trong `routes.tsx`, component `UserDetail` sử dụng hook `useParams()` để lấy giá trị `userId` từ URL, sau đó truyền vào `useEffect` để fetch thông tin chi tiết:
 
 ```tsx
 // src/pages/UserDetail.tsx
-import { useLoaderData, Link, type LoaderFunctionArgs } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router";
 import type { User } from "./Users";
 
-// Lấy params trực tiếp trong loader mà không cần hook
-export async function userDetailLoader({ params }: LoaderFunctionArgs): Promise<User> {
-  const { userId } = params;
-  const res = await fetch(`https://jsonplaceholder.typicode.com/users/${userId}`);
-  if (!res.ok) {
-    throw new Response("Người dùng không tồn tại", { status: 404 });
-  }
-  return res.json();
-}
-
 export default function UserDetail() {
-  const user = useLoaderData() as User;
+  // 1. Lấy tham số userId từ dynamic route "/users/:userId"
+  const { userId } = useParams();
+  const [user, setUser] = useState<User | null>(null);
+
+  // 2. Fetch lại dữ liệu mỗi khi userId thay đổi
+  useEffect(() => {
+    fetch(`https://jsonplaceholder.typicode.com/users/${userId}`)
+      .then((res) => res.json())
+      .then((res) => {
+        setUser(res);
+      });
+  }, [userId]);
 
   return (
     <div>
       <Link to="/users">← Quay lại danh sách</Link>
-      <h1>👤 Chi tiết: {user.name}</h1>
-      <p>Email: {user.email}</p>
-    </div>
-  );
-}
-```
-
----
-
-### 4.4. Xử lý lỗi với `errorElement` hoặc `ErrorBoundary`
-
-Khi `loader` ném ra ngoại lệ (`throw new Error(...)` hoặc `throw new Response(...)`), React Router sẽ tự động chuyển sang render `ErrorBoundary`:
-
-```tsx
-// src/pages/ErrorPage.tsx
-import { useRouteError, isRouteErrorResponse, Link } from "react-router";
-
-export default function ErrorPage() {
-  const error = useRouteError();
-
-  return (
-    <div style={{ padding: "24px", color: "#b91c1c" }}>
-      <h2>⚠️ Đã xảy ra lỗi!</h2>
-      {isRouteErrorResponse(error) ? (
-        <p>{error.status} - {error.statusText || error.data}</p>
-      ) : (
-        <p>{(error as Error)?.message || "Lỗi không xác định"}</p>
+      <h1>👤 Chi tiết User #{userId}</h1>
+      {user && (
+        <div>
+          <p><strong>Name:</strong> {user.name}</p>
+          <p><strong>Username:</strong> {user.username}</p>
+          <p><strong>Email:</strong> {user.email}</p>
+          <p><strong>Phone:</strong> {user.phone}</p>
+          <p><strong>Website:</strong> {user.website}</p>
+          <p><strong>Company:</strong> {user.company.name}</p>
+          <p><strong>City:</strong> {user.address.city}</p>
+        </div>
       )}
-      <Link to="/">Quay về Trang chủ</Link>
     </div>
   );
 }
@@ -296,20 +298,29 @@ export default function ErrorPage() {
 
 ---
 
-### 4.5. Xử lý trang 404 Not Found
+### 4.3. Các trang tĩnh (`Home.tsx`, `About.tsx`)
 
-Dùng route có `path: "*"` đặt ở cuối danh sách route con:
+Với các trang tĩnh không cần gọi API, component chỉ đơn giản render JSX:
 
 ```tsx
-// src/pages/NotFound.tsx
-import { Link } from "react-router";
-
-export default function NotFound() {
+// src/pages/Home.tsx
+export default function Home() {
   return (
-    <div style={{ textAlign: "center", padding: "40px" }}>
-      <h1>404</h1>
-      <p>Trang bạn đang tìm kiếm không tồn tại.</p>
-      <Link to="/">← Quay lại Trang chủ</Link>
+    <div>
+      <h1>🏠 Trang chủ</h1>
+      <p>Chào mừng đến với ứng dụng React Router!</p>
+    </div>
+  );
+}
+```
+
+```tsx
+// src/pages/About.tsx
+export default function About() {
+  return (
+    <div>
+      <h1>📖 Giới thiệu</h1>
+      <p>Đây là trang About. Không có loader, chỉ render thuần.</p>
     </div>
   );
 }
@@ -317,23 +328,47 @@ export default function NotFound() {
 
 ---
 
-## 5. Các Thành Phần Điều Hướng Thường Dùng
+## 5. So Sánh: Fetch trong Component vs Dùng `loader`
 
-| Component / Hook | Mục đích sử dụng | Ví dụ |
+| Đặc điểm | Fetch trong Component (`useEffect` + `useState`) *(Dự án này)* | Dùng Data Router `loader` |
 | :--- | :--- | :--- |
-| `<Link to="...">` | Điều hướng client-side không reload lại trang | `<Link to="/users">Users</Link>` |
-| `<NavLink to="...">` | Giống `Link` nhưng hỗ trợ class/style kích hoạt (`isActive`, `isPending`) | `<NavLink className={({isActive}) => isActive ? 'active' : ''}>` |
-| `<Navigate to="..." replace />` | Chuyển hướng tự động bằng component (Redirect) | `<Navigate to="/login" replace />` |
-| `useNavigate()` | Điều hướng bằng code Javascript (sau khi bấm nút, submit form,...) | `const navigate = useNavigate(); navigate('/dashboard');` |
-| `useSearchParams()` | Đọc và ghi query parameters trên URL (`?key=value`) | `const [params, setParams] = useSearchParams();` |
+| **Vị trí lấy data** | Bên trong component (`useEffect`) | Tách biệt ngoài route config (`loader: ...`) |
+| **Tốc độ chuyển trang** | Chuyển trang **tức thì**, sau đó hiển thị skeleton/loading indicator trong trang con | Bị dừng ở trang cũ cho tới khi API fetch xong mới render trang mới |
+| **Độ phức tạp** | Rất thấp, chuẩn tư duy React cơ bản | Cao hơn (cần hiểu cơ chế Data Router, `useLoaderData`, `ErrorBoundary`) |
+| **Quản lý State** | Tự chủ hoàn toàn trong component bằng `useState` | Nhận qua hook `useLoaderData()` |
+| **Khả năng tích hợp thư viện** | Tương thích hoàn hảo với React Query (`@tanstack/react-query`), SWR, RTK Query | Thường phải kết hợp qua `queryClient.ensureQueryData` |
+
+> [!TIP]
+> **Tại sao dự án chọn cách này?**
+> Với các ứng dụng SPA (CSR) thông thường, việc sử dụng `createBrowserRouter` để định tuyến lồng nhau và quản lý fetch data trực tiếp trong component giúp code minh bạch, phân tách rõ trách nhiệm điều hướng và xử lý logic giao diện, đồng thời tạo tiền đề thuận lợi nếu bạn muốn tích hợp thư viện quản lý server-state mạnh mẽ như React Query sau này.
 
 ---
 
-## 6. Bảng Tra Cứu Hooks Quan Trọng
+## 6. Các Thành Phần Điều Hướng & Hooks Thường Dùng
 
-1. **`useLoaderData()`**: Lấy dữ liệu trả về từ hàm `loader` tương ứng với route hiện tại.
-2. **`useParams()`**: Lấy object chứa các URL dynamic segments (ví dụ: `:userId` -> `params.userId`).
-3. **`useNavigation()`**: Theo dõi trạng thái toàn cục của việc chuyển trang (`idle`, `loading`, `submitting`).
-4. **`useNavigate()`**: Hàm chuyển trang theo lệnh (Imperative navigation).
-5. **`useLocation()`**: Lấy thông tin URL hiện tại (`pathname`, `search`, `hash`, `state`).
-6. **`useRouteError()`**: Bắt lỗi văng ra từ `loader`, `action`, hoặc quá trình render bên trong `ErrorBoundary`.
+### Component điều hướng:
+- **`<Link to="...">`**: Điều hướng client-side không làm tải lại trang.
+- **`<NavLink to="..." end>`**: Tương tự `<Link>` nhưng tự động bổ sung trạng thái active để làm nổi bật menu đang chọn.
+- **`<Outlet />`**: Điểm neo để hiển thị nội dung route con bên trong layout cha.
+
+### Hooks phổ biến:
+- **`useParams()`**: Trích xuất các tham số động từ URL (ví dụ: `:userId` trong `/users/:userId`).
+- **`useNavigate()`**: Điều hướng chủ động bằng mã JavaScript (thường dùng sau khi submit form hoặc bấm nút):
+  ```tsx
+  import { useNavigate } from "react-router";
+
+  const navigate = useNavigate();
+  // Chuyển trang:
+  navigate("/users");
+  // Quay lại trang trước:
+  navigate(-1);
+  ```
+- **`useLocation()`**: Đọc thông tin chi tiết về URL hiện tại (`pathname`, `search`, `hash`, `state`).
+- **`useSearchParams()`**: Đọc và chỉnh sửa query parameters trên URL (`?keyword=abc&page=1`):
+  ```tsx
+  import { useSearchParams } from "react-router";
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = searchParams.get("page");
+  ```
+- **`useNavigation()`**: Kiểm tra trạng thái điều hướng toàn cục của router.
